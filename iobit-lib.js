@@ -313,6 +313,54 @@ myLibrary.fn.extend({
   },
 });
 
+// components
+myLibrary.fn.extend({
+  UniversalPopup: function ({
+    title = "",
+    desc = "",
+    btnText = "",
+    status = "success",
+  }) {
+    const popupDoms = this.qsAll(".UniversalPopup");
+    if (popupDoms?.length) {
+      popupDoms.forEach((item) => {
+        item.remove();
+      });
+    }
+    const html = `
+       <div class="UniversalPopup ${status}">
+         <div class="UniversalPopup__main">
+           <div class="UniversalPopup__main_title">${title}</div>
+           <div class="UniversalPopup__main_desc">${desc}</div>
+           <div class="UniversalPopup__main_bar">
+             <div class="UniversalPopup__main_process"></div>
+           </div>
+           <div class="UniversalPopup__main_btn">
+             <button>${btnText}</button>
+           </div>
+           <div class="UniversalPopup__main_close">
+            <svg id="win_icon_close" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
+              <path id="路径_158819" data-name="路径 158819" d="M-8171.115,3374.287l11.474,11.131" transform="translate(8175.615 -3369.787)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"/>
+              <path id="路径_158820" data-name="路径 158820" d="M-8159.641,3374.287l-11.474,11.131" transform="translate(8175.615 -3369.787)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"/>
+              <rect id="矩形_5357" data-name="矩形 5357" width="20" height="20" fill="none"/>
+            </svg>
+           </div>
+         </div>
+       </div>
+     `;
+    document.body.insertAdjacentHTML("beforeend", html);
+    const popupDom = this.qs(".UniversalPopup");
+    const closeBtn = this.qs(".UniversalPopup__main_close", popupDom);
+    const okBtn = this.qs(".UniversalPopup__main_btn button", popupDom);
+    closeBtn.onclick = () => {
+      popupDom.remove();
+    };
+    okBtn.onclick = () => {
+      popupDom.remove();
+    };
+  },
+});
+
 // Other
 myLibrary.fn.extend({
   httpsTemp: function (str, bool = true) {
