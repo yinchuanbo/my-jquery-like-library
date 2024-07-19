@@ -395,4 +395,75 @@ myLibrary.fn.extend({
       }
     });
   },
+  // 判断数组、对象、集合、映射 是否为空
+  isEmpty(value) {
+    function isTypedArray(value) {
+      const typedArrayTags = {};
+      [
+        "Int8Array",
+        "Uint8Array",
+        "Uint8ClampedArray",
+        "Int16Array",
+        "Uint16Array",
+        "Int32Array",
+        "Uint32Array",
+        "Float32Array",
+        "Float64Array",
+      ].forEach((tag) => {
+        typedArrayTags[`[object ${tag}]`] = true;
+      });
+      return typedArrayTags[Object.prototype.toString.call(value)] || false;
+    }
+    function isArguments(value) {
+      return Object.prototype.toString.call(value) === "[object Arguments]";
+    }
+    function getTag(value) {
+      return Object.prototype.toString.call(value);
+    }
+    function isPrototype(value) {
+      const Ctor = value && value.constructor;
+      const proto =
+        (typeof Ctor === "function" && Ctor.prototype) || Object.prototype;
+      return value === proto;
+    }
+    function isObject(value) {
+      const type = typeof value;
+      return value != null && (type === "object" || type === "function");
+    }
+    function baseKeys(object) {
+      if (!isObject(object)) return [];
+      const keys = [];
+      for (const key in object) {
+        if (Object.prototype.hasOwnProperty.call(object, key)) {
+          keys.push(key);
+        }
+      }
+      return keys;
+    }
+    if (value == null) {
+      return true;
+    }
+    if (
+      typeof value === "object" &&
+      (Array.isArray(value) ||
+        typeof value.splice === "function" ||
+        isTypedArray(value) ||
+        isArguments(value))
+    ) {
+      return !value.length;
+    }
+    const tag = getTag(value);
+    if (tag === "[object Map]" || tag === "[object Set]") {
+      return !value.size;
+    }
+    if (isPrototype(value)) {
+      return !baseKeys(value).length;
+    }
+    for (const key in value) {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        return false;
+      }
+    }
+    return true;
+  },
 });
