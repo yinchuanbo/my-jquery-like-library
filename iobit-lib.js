@@ -11,6 +11,7 @@
   myLibrary.fn = myLibrary.prototype = {
     constructor: myLibrary,
     headers: {},
+    controllers: {},
     init: function (selector) {
       if (!selector) {
         return this;
@@ -170,7 +171,7 @@ myLibrary.fn.extend({
   get: function (url, headers = {}) {
     const controller = new AbortController();
     const { signal } = controller;
-    controllers.push(controller);
+    this.controllers.push(controller);
     return fetch(url, {
       method: "GET",
       headers: {
@@ -183,7 +184,7 @@ myLibrary.fn.extend({
   post: function (url, data, headers = {}) {
     const controller = new AbortController();
     const { signal } = controller;
-    controllers.push(controller);
+    this.controllers.push(controller);
     return fetch(url, {
       method: "POST",
       headers: {
@@ -197,7 +198,7 @@ myLibrary.fn.extend({
   postFormData: function (url, data, headers = {}) {
     const controller = new AbortController();
     const { signal } = controller;
-    controllers.push(controller);
+    this.controllers.push(controller);
     const curHeaders = {
       ...this.headers,
       ...headers,
@@ -217,7 +218,7 @@ myLibrary.fn.extend({
   put: function (url, data, headers = {}) {
     const controller = new AbortController();
     const { signal } = controller;
-    controllers.push(controller);
+    this.controllers.push(controller);
     return fetch(url, {
       method: "PUT",
       headers,
