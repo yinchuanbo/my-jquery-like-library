@@ -117,241 +117,6 @@ myLibrary.fn.extend({
   },
 });
 
-// request 请求
-myLibrary.fn.extend({
-  getHeaders: function () {
-    const headers = this.headers;
-    const curToken = this.getCookie("access_token");
-    if (curToken) {
-      headers["Authorization"] = "Bearer " + curToken;
-    } else {
-      delete this.headers?.Authorization;
-    }
-    return headers;
-  },
-  get: function (url, headers = {}) {
-    const controller = new AbortController();
-    const { signal } = controller;
-    this.controllers.push(controller);
-    return fetch(url, {
-      method: "GET",
-      headers: {
-        ...this.getHeaders(),
-        ...headers,
-      },
-      signal,
-    }).then((response) => response.json());
-  },
-  post: function (url, data, headers = {}) {
-    const controller = new AbortController();
-    const { signal } = controller;
-    this.controllers.push(controller);
-    return fetch(url, {
-      method: "POST",
-      headers: {
-        ...this.getHeaders(),
-        ...headers,
-      },
-      signal,
-      body: JSON.stringify(data),
-    }).then((response) => response.json());
-  },
-  postFormData: function (url, data, headers = {}) {
-    const controller = new AbortController();
-    const { signal } = controller;
-    this.controllers.push(controller);
-    const curHeaders = {
-      ...this.getHeaders(),
-      ...headers,
-    };
-    delete curHeaders["Content-Type"];
-    const formData = new FormData();
-    for (const key in data) {
-      formData.append(key, data[key]);
-    }
-    return fetch(url, {
-      method: "POST",
-      headers: curHeaders,
-      signal,
-      body: formData,
-    }).then((response) => response.json());
-  },
-  put: function (url, data, headers = {}) {
-    const controller = new AbortController();
-    const { signal } = controller;
-    this.controllers.push(controller);
-    return fetch(url, {
-      method: "PUT",
-      headers,
-      signal,
-      body: data,
-    }).then((response) => response.status);
-  },
-});
-
-// API 封装
-myLibrary.fn.extend({
-  addTask: async function (params = {}) {
-    try {
-      const res = await this.post(
-        `${this.baseApi}${this.ApiUrl["add-task"]}`,
-        params
-      );
-      return Promise.resolve(res);
-    } catch (error) {
-      return Promise.reject(error);
-    }
-  },
-  getTask: async function (params = {}) {
-    try {
-      const res = await this.post(
-        `${this.baseApi}${this.ApiUrl["get-task"]}`,
-        params
-      );
-      return Promise.resolve(res);
-    } catch (error) {
-      return Promise.reject(error);
-    }
-  },
-  loop: async function (addTData = {}, callback = () => {}) {
-    async function getTaskLoop(taskId, cb = () => {}) {
-      let time = 0;
-      while (true) {
-        try {
-          const res = await this.getTask({
-            id: taskId,
-          });
-          const status = res?.data?.status;
-          if (status === 0) {
-            await cb?.(res);
-            return Promise.resolve(res?.data?.additional_data ?? {});
-          } else if (![0, -1, -2].includes(status)) {
-            return Promise.reject();
-          }
-        } catch (error) {
-          if (time >= 5) {
-            return Promise.reject();
-          }
-          time++;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 5000));
-      }
-    }
-    try {
-      const res = await this.addTask(addTData);
-      const code = res?.code;
-      const taskId = res?.data?.task_id;
-      if (code === 200 && taskId) {
-        try {
-          const data = await getTaskLoop(taskId, callback);
-          return Promise.resolve({
-            code: 200,
-            task_id: taskId,
-            data,
-          });
-        } catch (error) {
-          return Promise.reject(error);
-        }
-      } else {
-        return Promise.resolve({
-          code,
-        });
-      }
-    } catch (error) {
-      return Promise.reject(error);
-    }
-  },
-  getAccessUrl: async function (params = {}) {
-    try {
-      const res = await this.post(
-        `${this.baseApi}${this.ApiUrl["get-access-url"]}`,
-        params
-      );
-      return Promise.resolve(res);
-    } catch (error) {
-      return Promise.reject(error);
-    }
-  },
-  tempUploadUrl: async function (params = {}) {
-    try {
-      const res = await this.post(
-        `${this.baseApi}${this.ApiUrl["temp-upload-url"]}`,
-        params
-      );
-      return Promise.resolve(res);
-    } catch (error) {
-      return Promise.reject(error);
-    }
-  },
-  getUploadUrl: async function (params = {}) {
-    try {
-      const res = await this.post(
-        `${this.baseApiOld}${this.ApiUrl["get-upload-url"]}`,
-        params
-      );
-      return Promise.resolve(res);
-    } catch (error) {
-      return Promise.reject(error);
-    }
-  },
-  canTask: async function (params = {}) {
-    try {
-      const res = await this.post(
-        `${this.baseApi}${this.ApiUrl["get-task"]}`,
-        params
-      );
-      return Promise.resolve(res);
-    } catch (error) {
-      return Promise.reject(error);
-    }
-  },
-  uploadAssets: async function ({ fileName = "", file, permanent = false }) {
-    const readText = (blob) => {
-      return new Promise((resolve) => {
-        const blobReader = new FileReader();
-        blobReader.onload = function () {
-          resolve(true);
-        };
-        blobReader.onerror = function (error) {
-          resolve(false);
-        };
-        blobReader.readAsArrayBuffer(blob);
-      });
-    };
-    try {
-      const res = await this[permanent ? "getUploadUrl" : "tempUploadUrl"]({
-        file_name: fileName || `default.${file.type}`,
-      });
-      const code = res?.code;
-      const uploadUrl = res?.data?.upload_url;
-      const key = res?.data?.key;
-      if (code === 200 && uploadUrl) {
-        const blob = new Blob([file], { type: file.type });
-        const result = await readText(blob);
-        if (!result) {
-          return Promise.resolve({
-            code: 404,
-            message: "no such file",
-          });
-        }
-        const putRes = await this.put(uploadUrl, blob);
-        if (putRes === 200) {
-          return Promise.resolve({
-            code: 200,
-            key,
-          });
-        } else {
-          return Promise.reject();
-        }
-      } else {
-        return Promise.reject();
-      }
-    } catch (error) {
-      return Promise.reject(error);
-    }
-  },
-});
-
 // 获取设备类型
 myLibrary.fn.extend({
   isMobile: function () {
@@ -628,5 +393,241 @@ myLibrary.fn.extend({
         easing: "ease-in-out",
       }
     );
+  },
+  // 深克隆
+  cloneData: function (data = null) {
+    if (!data) return data;
+    return JSON.parse(JSON.stringify(data));
+  },
+});
+
+// request 请求
+myLibrary.fn.extend({
+  getHeaders: function () {
+    const headers = this.cloneData(this.headers);
+    const curToken = this.getCookie("access_token");
+    if (curToken) headers["Authorization"] = "Bearer " + curToken;
+    return headers;
+  },
+  get: function (url, headers = {}) {
+    const controller = new AbortController();
+    const { signal } = controller;
+    this.controllers.push(controller);
+    return fetch(url, {
+      method: "GET",
+      headers: {
+        ...this.getHeaders(),
+        ...headers,
+      },
+      signal,
+    }).then((response) => response.json());
+  },
+  post: function (url, data, headers = {}) {
+    const controller = new AbortController();
+    const { signal } = controller;
+    this.controllers.push(controller);
+    return fetch(url, {
+      method: "POST",
+      headers: {
+        ...this.getHeaders(),
+        ...headers,
+      },
+      signal,
+      body: JSON.stringify(data),
+    }).then((response) => response.json());
+  },
+  postFormData: function (url, data, headers = {}) {
+    const controller = new AbortController();
+    const { signal } = controller;
+    this.controllers.push(controller);
+    const curHeaders = {
+      ...this.getHeaders(),
+      ...headers,
+    };
+    delete curHeaders["Content-Type"];
+    const formData = new FormData();
+    for (const key in data) {
+      formData.append(key, data[key]);
+    }
+    return fetch(url, {
+      method: "POST",
+      headers: curHeaders,
+      signal,
+      body: formData,
+    }).then((response) => response.json());
+  },
+  put: function (url, data, headers = {}) {
+    const controller = new AbortController();
+    const { signal } = controller;
+    this.controllers.push(controller);
+    return fetch(url, {
+      method: "PUT",
+      headers,
+      signal,
+      body: data,
+    }).then((response) => response.status);
+  },
+});
+
+// API 封装
+myLibrary.fn.extend({
+  addTask: async function (params = {}) {
+    try {
+      const res = await this.post(
+        `${this.baseApi}${this.ApiUrl["add-task"]}`,
+        params
+      );
+      return Promise.resolve(res);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  },
+  getTask: async function (params = {}) {
+    try {
+      const res = await this.post(
+        `${this.baseApi}${this.ApiUrl["get-task"]}`,
+        params
+      );
+      return Promise.resolve(res);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  },
+  loopTask: async function (addTData = {}, callback = () => {}) {
+    async function getTaskLoop(taskId, cb = () => {}) {
+      let time = 0;
+      while (true) {
+        try {
+          const res = await this.getTask({
+            id: taskId,
+          });
+          const status = res?.data?.status;
+          if (status === 0) {
+            await cb?.(res);
+            return Promise.resolve(res?.data?.additional_data ?? {});
+          } else if (![0, -1, -2].includes(status)) {
+            return Promise.reject();
+          }
+        } catch (error) {
+          if (time >= 5) {
+            return Promise.reject();
+          }
+          time++;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+      }
+    }
+    try {
+      const res = await this.addTask(addTData);
+      const code = res?.code;
+      const taskId = res?.data?.task_id;
+      if (code === 200 && taskId) {
+        try {
+          const data = await getTaskLoop(taskId, callback);
+          return Promise.resolve({
+            code: 200,
+            task_id: taskId,
+            data,
+          });
+        } catch (error) {
+          return Promise.reject(error);
+        }
+      } else {
+        return Promise.resolve({
+          code,
+        });
+      }
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  },
+  getAccessUrl: async function (params = {}) {
+    try {
+      const res = await this.post(
+        `${this.baseApi}${this.ApiUrl["get-access-url"]}`,
+        params
+      );
+      return Promise.resolve(res);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  },
+  tempUploadUrl: async function (params = {}) {
+    try {
+      const res = await this.post(
+        `${this.baseApi}${this.ApiUrl["temp-upload-url"]}`,
+        params
+      );
+      return Promise.resolve(res);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  },
+  getUploadUrl: async function (params = {}) {
+    try {
+      const res = await this.post(
+        `${this.baseApiOld}${this.ApiUrl["get-upload-url"]}`,
+        params
+      );
+      return Promise.resolve(res);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  },
+  canTask: async function (params = {}) {
+    try {
+      const res = await this.post(
+        `${this.baseApi}${this.ApiUrl["get-task"]}`,
+        params
+      );
+      return Promise.resolve(res);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  },
+  uploadAssets: async function ({ fileName = "", file, permanent = false }) {
+    const readText = (blob) => {
+      return new Promise((resolve) => {
+        const blobReader = new FileReader();
+        blobReader.onload = function () {
+          resolve(true);
+        };
+        blobReader.onerror = function (error) {
+          resolve(false);
+        };
+        blobReader.readAsArrayBuffer(blob);
+      });
+    };
+    try {
+      const res = await this[permanent ? "getUploadUrl" : "tempUploadUrl"]({
+        file_name: fileName || `default.${file.type}`,
+      });
+      const code = res?.code;
+      const uploadUrl = res?.data?.upload_url;
+      const key = res?.data?.key;
+      if (code === 200 && uploadUrl) {
+        const blob = new Blob([file], { type: file.type });
+        const result = await readText(blob);
+        if (!result) {
+          return Promise.resolve({
+            code: 404,
+            message: "no such file",
+          });
+        }
+        const putRes = await this.put(uploadUrl, blob);
+        if (putRes === 200) {
+          return Promise.resolve({
+            code: 200,
+            key,
+          });
+        } else {
+          return Promise.reject();
+        }
+      } else {
+        return Promise.reject();
+      }
+    } catch (error) {
+      return Promise.reject(error);
+    }
   },
 });
