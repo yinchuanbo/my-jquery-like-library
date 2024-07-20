@@ -8,10 +8,34 @@
   const myLibrary = function (selector) {
     return new myLibrary.fn.init(selector);
   };
+  // ********************* 配置 **********************
+  const httpsTemp = (str) => {
+    return `https://${str}/`;
+  };
+  const isProduction = location.host.includes("www.vidnoz.com") ? true : false;
+  const headers = {
+    "Content-Type": "application/json",
+    "X-TASK-VERSION": "2.0.0",
+  };
+  const baseApi = isProduction
+    ? httpsTemp("tool-api.vidnoz.com")
+    : httpsTemp("tool-api-test.vidnoz.com");
+  const pcAppDomain = isProduction
+    ? httpsTemp("aiapp.vidnoz.com")
+    : httpsTemp("ai-test.vidnoz.com");
+  const mAppDomain = isProduction
+    ? httpsTemp("m.vidnoz.com")
+    : httpsTemp("m-test-f700c64e.vidnoz.com");
+  // ********************* 配置 **********************
   myLibrary.fn = myLibrary.prototype = {
     constructor: myLibrary,
-    headers: {},
-    controllers: {},
+    controllers: [],
+    isProduction,
+    headers,
+    baseApi,
+    httpsTemp,
+    pcAppDomain,
+    mAppDomain,
     init: function (selector) {
       if (!selector) {
         return this;
@@ -168,6 +192,16 @@ myLibrary.fn.extend({
 
 // request 请求
 myLibrary.fn.extend({
+  getHeaders: function () {
+    const headers = this.headers;
+    const curToken = this.getCookie("access_token");
+    if (curToken) {
+      headers["Authorization"] = "Bearer " + curToken;
+    } else {
+      delete this.headers?.Authorization;
+    }
+    return headers;
+  },
   get: function (url, headers = {}) {
     const controller = new AbortController();
     const { signal } = controller;
@@ -175,7 +209,7 @@ myLibrary.fn.extend({
     return fetch(url, {
       method: "GET",
       headers: {
-        ...this.headers,
+        ...this.getHeaders(),
         ...headers,
       },
       signal,
@@ -188,7 +222,7 @@ myLibrary.fn.extend({
     return fetch(url, {
       method: "POST",
       headers: {
-        ...this.headers,
+        ...this.getHeaders(),
         ...headers,
       },
       signal,
@@ -200,7 +234,7 @@ myLibrary.fn.extend({
     const { signal } = controller;
     this.controllers.push(controller);
     const curHeaders = {
-      ...this.headers,
+      ...this.getHeaders(),
       ...headers,
     };
     delete curHeaders["Content-Type"];
@@ -229,6 +263,68 @@ myLibrary.fn.extend({
 });
 
 // API 封装
+myLibrary.fn.extend({
+  addTask: async function (params = {}) {
+    try {
+      const res = await this.post(`${this.baseApi}ai/ai-tool/add-task`, params);
+      return Promise.resolve(res);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  },
+  getTask: async function (params = {}) {
+    try {
+      const res = await this.post(`${this.baseApi}ai/tool/get-task`, params);
+      return Promise.resolve(res);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  },
+  getTaskLoop: async function (taskId, callback = () => {}) {
+    let time = 0;
+    while (true) {
+      try {
+        const res = await this.getTask({
+          id: taskId,
+        });
+        const status = res?.data?.status;
+        if (status === 0) {
+          await callback(res);
+          return Promise.resolve(res?.data?.additional_data ?? {});
+        } else if (![0, -1, -2].includes(status)) {
+          return Promise.reject();
+        }
+      } catch (error) {
+        if (time >= 5) {
+          return Promise.reject();
+        }
+        time++;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
+  },
+  // callback 为异步函数
+  loop: async function (addTData = {}, callback = () => {}) {
+    try {
+      const res = await this.addTask(addTData);
+      const code = res?.code;
+      const taskId = res?.data?.task_id;
+      if (code === 200 && taskId) {
+        try {
+          const data = await this.getTaskLoop(taskId, callback);
+          return Promise.resolve({
+            task_id: taskId,
+            data,
+          });
+        } catch (error) {
+          return Promise.reject(error);
+        }
+      }
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  },
+});
 
 // 获取设备类型
 myLibrary.fn.extend({
@@ -364,9 +460,6 @@ myLibrary.fn.extend({
 
 // Other
 myLibrary.fn.extend({
-  httpsTemp: function (str, bool = true) {
-    return bool ? `https://${str}/` : `https://${str}/`;
-  },
   copyText: async (val) => {
     if (navigator.clipboard && navigator.permissions) {
       await navigator.clipboard.writeText(val);
@@ -394,76 +487,5 @@ myLibrary.fn.extend({
         callback(file);
       }
     });
-  },
-  // 判断数组、对象、集合、映射 是否为空
-  isEmpty(value) {
-    function isTypedArray(value) {
-      const typedArrayTags = {};
-      [
-        "Int8Array",
-        "Uint8Array",
-        "Uint8ClampedArray",
-        "Int16Array",
-        "Uint16Array",
-        "Int32Array",
-        "Uint32Array",
-        "Float32Array",
-        "Float64Array",
-      ].forEach((tag) => {
-        typedArrayTags[`[object ${tag}]`] = true;
-      });
-      return typedArrayTags[Object.prototype.toString.call(value)] || false;
-    }
-    function isArguments(value) {
-      return Object.prototype.toString.call(value) === "[object Arguments]";
-    }
-    function getTag(value) {
-      return Object.prototype.toString.call(value);
-    }
-    function isPrototype(value) {
-      const Ctor = value && value.constructor;
-      const proto =
-        (typeof Ctor === "function" && Ctor.prototype) || Object.prototype;
-      return value === proto;
-    }
-    function isObject(value) {
-      const type = typeof value;
-      return value != null && (type === "object" || type === "function");
-    }
-    function baseKeys(object) {
-      if (!isObject(object)) return [];
-      const keys = [];
-      for (const key in object) {
-        if (Object.prototype.hasOwnProperty.call(object, key)) {
-          keys.push(key);
-        }
-      }
-      return keys;
-    }
-    if (value == null) {
-      return true;
-    }
-    if (
-      typeof value === "object" &&
-      (Array.isArray(value) ||
-        typeof value.splice === "function" ||
-        isTypedArray(value) ||
-        isArguments(value))
-    ) {
-      return !value.length;
-    }
-    const tag = getTag(value);
-    if (tag === "[object Map]" || tag === "[object Set]") {
-      return !value.size;
-    }
-    if (isPrototype(value)) {
-      return !baseKeys(value).length;
-    }
-    for (const key in value) {
-      if (Object.prototype.hasOwnProperty.call(value, key)) {
-        return false;
-      }
-    }
-    return true;
   },
 });
