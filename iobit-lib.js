@@ -23,6 +23,9 @@
   const baseApiDomain = isProduction
     ? "tool-api.vidnoz.com"
     : "tool-api-test.vidnoz.com";
+  const baseApiDomainOld = isProduction
+    ? "api.vidnoz.com"
+    : "api-test.vidnoz.com";
   const suffix = curLan === "en" ? "" : `-${curLan}`;
   let mSuffix = ["en", "ar", "tw", "kr"].includes(curLan);
   mSuffix = mSuffix ? "" : `-${curLan}`;
@@ -38,6 +41,7 @@
     "get-access-url": "ai/source/get-access-url",
     "temp-upload-url": "ai/source/temp-upload-url",
     "can-task": "ai/tool/can-task",
+    "get-upload-url": "ai/source/get-upload-url",
   };
   // **************** 配置 *******************
   myLibrary.fn = myLibrary.prototype = {
@@ -45,6 +49,7 @@
     isProduction,
     headers,
     baseApi: httpsTemp(baseApiDomain),
+    baseApiOld: httpsTemp(baseApiDomainOld),
     pcAppDomain: httpsTemp(pcAppDomain),
     mAppDomain: httpsTemp(mAppDomain),
     httpsTemp,
@@ -278,6 +283,17 @@ myLibrary.fn.extend({
       return Promise.reject(error);
     }
   },
+  getUploadUrl: async function (params = {}) {
+    try {
+      const res = await this.post(
+        `${this.baseApiOld}${this.ApiUrl["get-upload-url"]}`,
+        params
+      );
+      return Promise.resolve(res);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  },
   canTask: async function (params = {}) {
     try {
       const res = await this.post(
@@ -285,6 +301,51 @@ myLibrary.fn.extend({
         params
       );
       return Promise.resolve(res);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  },
+  uploadAssets: async function ({ fileName = "", file, permanent = false }) {
+    const readText = (blob) => {
+      return new Promise((resolve) => {
+        const blobReader = new FileReader();
+        blobReader.onload = function () {
+          resolve(true);
+        };
+        blobReader.onerror = function (error) {
+          resolve(false);
+        };
+        blobReader.readAsArrayBuffer(blob);
+      });
+    };
+    try {
+      const res = await this[permanent ? "getUploadUrl" : "tempUploadUrl"]({
+        file_name: fileName || `default.${file.type}`,
+      });
+      const code = res?.code;
+      const uploadUrl = res?.data?.upload_url;
+      const key = res?.data?.key;
+      if (code === 200 && uploadUrl) {
+        const blob = new Blob([file], { type: file.type });
+        const result = await readText(blob);
+        if (!result) {
+          return Promise.resolve({
+            code: 404,
+            message: "no such file",
+          });
+        }
+        const putRes = await this.put(uploadUrl, blob);
+        if (putRes === 200) {
+          return Promise.resolve({
+            code: 200,
+            key,
+          });
+        } else {
+          return Promise.reject();
+        }
+      } else {
+        return Promise.reject();
+      }
     } catch (error) {
       return Promise.reject(error);
     }
@@ -526,7 +587,7 @@ myLibrary.fn.extend({
   continueRequestOnUnload2: function (url = "", data = {}) {
     navigator.sendBeacon(url, JSON.stringify(data));
   },
-  // 颜色转换
+  // 颜色转换 hex -> rgb
   hexToRGB: function (hex) {
     var hexx = hex.replace("#", "0x");
     var r = hexx >> 16;
@@ -534,9 +595,38 @@ myLibrary.fn.extend({
     var b = hexx & 0xff;
     return `rgb(${r}, ${g}, ${b})`;
   },
+  // 颜色转换 rgb -> hex
   RGBToHex: function (rgb) {
     var rgbArr = rgb.split(/[^\d]+/);
     var color = (rgbArr[1] << 16) | (rgbArr[2] << 8) | rgbArr[3];
     return "#" + color.toString(16);
+  },
+  // FLIP 动画封装函数
+  flipAnimate: function (element, duration = 500) {
+    const first = {
+      rect: element.getBoundingClientRect(),
+      opacity: window.getComputedStyle(element).opacity,
+    };
+    element.style.transform = `translate(${first.rect.left}px, ${first.rect.top}px)`;
+    element.style.opacity = 0;
+    void element.offsetWidth;
+    const last = {
+      rect: element.getBoundingClientRect(),
+      opacity: window.getComputedStyle(element).opacity,
+    };
+    const deltaX = first.rect.left - last.rect.left;
+    const deltaY = first.rect.top - last.rect.top;
+    element.style.transform = `translate(0, 0)`;
+    element.style.opacity = 1;
+    element.animate(
+      [
+        { transform: `translate(${deltaX}px, ${deltaY}px)`, opacity: 0 },
+        { transform: "translate(0, 0)", opacity: 1 },
+      ],
+      {
+        duration: duration,
+        easing: "ease-in-out",
+      }
+    );
   },
 });
