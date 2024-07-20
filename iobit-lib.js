@@ -8,135 +8,67 @@
   const myLibrary = function (selector) {
     return new myLibrary.fn.init(selector);
   };
-  // ********************* 配置 **********************
-  const httpsTemp = (str) => {
-    return `https://${str}/`;
-  };
-  const isProduction = location.host.includes("www.vidnoz.com") ? true : false;
+  // **************** 配置 *******************
+  const httpsTemp = (str) => `https://${str}/`;
+  const curLan = "en";
+  const prefix = curLan === "en" ? "www" : curLan;
+  const isProduction = location.host.includes(`${prefix}.vidnoz.com`)
+    ? true
+    : false;
   const headers = {
     "Content-Type": "application/json",
-    "X-TASK-VERSION": XTASKVERSION || "2.0.0",
+    "X-TASK-VERSION": window?.XTASKVERSION || "2.0.0",
+    "Request-Language": curLan,
   };
-  const baseApi = isProduction
-    ? httpsTemp("tool-api.vidnoz.com")
-    : httpsTemp("tool-api-test.vidnoz.com");
+  const baseApiDomain = isProduction
+    ? "tool-api.vidnoz.com"
+    : "tool-api-test.vidnoz.com";
+  const suffix = curLan === "en" ? "" : `-${curLan}`;
+  let mSuffix = ["en", "ar", "tw", "kr"].includes(curLan);
+  mSuffix = mSuffix ? "" : `-${curLan}`;
   const pcAppDomain = isProduction
-    ? httpsTemp("aiapp.vidnoz.com")
-    : httpsTemp("ai-test.vidnoz.com");
+    ? `aiapp${suffix}.vidnoz.com`
+    : "ai-test.vidnoz.com";
   const mAppDomain = isProduction
-    ? httpsTemp("m.vidnoz.com")
-    : httpsTemp("m-test-f700c64e.vidnoz.com");
-  // ********************* 配置 **********************
+    ? `m${mSuffix}.vidnoz.com`
+    : "m-test-f700c64e.vidnoz.com";
+  const ApiUrl = {
+    "add-task": "ai/ai-tool/add-task",
+    "get-task": "ai/tool/get-task",
+    "get-access-url": "ai/source/get-access-url",
+    "temp-upload-url": "ai/source/temp-upload-url",
+    "can-task": "ai/tool/can-task",
+  };
+  // **************** 配置 *******************
   myLibrary.fn = myLibrary.prototype = {
     constructor: myLibrary,
-    controllers: [],
     isProduction,
     headers,
-    baseApi,
+    baseApi: httpsTemp(baseApiDomain),
+    pcAppDomain: httpsTemp(pcAppDomain),
+    mAppDomain: httpsTemp(mAppDomain),
     httpsTemp,
-    pcAppDomain,
-    mAppDomain,
+    ApiUrl,
     init: function (selector) {
-      if (!selector) {
-        return this;
-      }
-      this.elements = document.querySelectorAll(selector);
+      this.elements = selector ? document.querySelectorAll(selector) : [];
       return this;
     },
     each: function (callback) {
-      Array.prototype.forEach.call(this.elements, callback);
+      this.elements.forEach(callback);
+      return this;
+    },
+    extend: function (obj) {
+      for (let key in obj) {
+        if (obj.hasOwnProperty(key)) {
+          myLibrary.fn[key] = obj[key];
+        }
+      }
       return this;
     },
   };
   myLibrary.fn.init.prototype = myLibrary.fn;
   window.$$ = window.myLibrary = myLibrary;
   return myLibrary;
-});
-
-myLibrary.fn.extend = function (obj) {
-  for (let key in obj) {
-    if (obj.hasOwnProperty(key)) {
-      myLibrary.fn[key] = obj[key];
-    }
-  }
-  return this;
-};
-
-// DOM
-myLibrary.fn.extend({
-  qs: function (selector, doc = document) {
-    if (selector) {
-      return doc.querySelector(selector);
-    }
-    return this.elements[0];
-  },
-  qsAll: function (selector = null, doc = document) {
-    if (selector) {
-      return doc.querySelectorAll(selector);
-    }
-    return this.elements;
-  },
-  addClass: function (className) {
-    return this.each((item) => {
-      item.classList.add(className);
-    });
-  },
-  removeClass: function (className) {
-    return this.each((item) => {
-      item.classList.remove(className);
-    });
-  },
-  toggleClass: function (className) {
-    return this.each((item) => {
-      item.classList.toggle(className);
-    });
-  },
-  css: function (property, value, selector = null) {
-    if (selector) {
-      const items = this.qsAll(selector);
-      if (items?.length) {
-        items.forEach((item) => {
-          item.style[property] = value;
-        });
-      }
-      return;
-    }
-    return this.each((item) => {
-      item.style[property] = value;
-    });
-  },
-  append: function (content) {
-    return this.each(function (item) {
-      if (typeof content === "string") {
-        item.insertAdjacentHTML("beforeend", content);
-      } else if (content instanceof HTMLElement) {
-        item.appendChild(content);
-      }
-    });
-  },
-  prepend: function (content) {
-    return this.each(function (item) {
-      if (typeof content === "string") {
-        item.insertAdjacentHTML("afterbegin", content);
-      } else if (content instanceof HTMLElement) {
-        item.insertBefore(content, item.firstChild);
-      }
-    });
-  },
-});
-
-// 事件
-myLibrary.fn.extend({
-  on: function (event, handler) {
-    return this.each(function () {
-      this.addEventListener(event, handler);
-    });
-  },
-  off: function (event, handler) {
-    return this.each(function () {
-      this.removeEventListener(event, handler);
-    });
-  },
 });
 
 // 本地存储
@@ -166,16 +98,6 @@ myLibrary.fn.extend({
         window.localStorage.removeItem(key[i]);
       }
     }
-  },
-  setCookie: function (c_name, value, expiredays, host = ".vidnoz.com") {
-    const exdate = new Date();
-    exdate.setDate(exdate.getDate() + expiredays);
-    const c_value =
-      encodeURIComponent(value) +
-      (expiredays == null ? "" : ";expires=" + exdate.toUTCString()) +
-      ";path=/;domain=" +
-      host;
-    document.cookie = c_name + "=" + c_value;
   },
   getCookie: function (cookieName) {
     const allCookies = document.cookie;
@@ -266,7 +188,10 @@ myLibrary.fn.extend({
 myLibrary.fn.extend({
   addTask: async function (params = {}) {
     try {
-      const res = await this.post(`${this.baseApi}ai/ai-tool/add-task`, params);
+      const res = await this.post(
+        `${this.baseApi}${this.ApiUrl["add-task"]}`,
+        params
+      );
       return Promise.resolve(res);
     } catch (error) {
       return Promise.reject(error);
@@ -274,44 +199,46 @@ myLibrary.fn.extend({
   },
   getTask: async function (params = {}) {
     try {
-      const res = await this.post(`${this.baseApi}ai/tool/get-task`, params);
+      const res = await this.post(
+        `${this.baseApi}${this.ApiUrl["get-task"]}`,
+        params
+      );
       return Promise.resolve(res);
     } catch (error) {
       return Promise.reject(error);
     }
   },
-  getTaskLoop: async function (taskId, callback = () => {}) {
-    let time = 0;
-    while (true) {
-      try {
-        const res = await this.getTask({
-          id: taskId,
-        });
-        const status = res?.data?.status;
-        if (status === 0) {
-          await callback?.(res);
-          return Promise.resolve(res?.data?.additional_data ?? {});
-        } else if (![0, -1, -2].includes(status)) {
-          return Promise.reject();
-        }
-      } catch (error) {
-        if (time >= 5) {
-          return Promise.reject();
-        }
-        time++;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-    }
-  },
-  // loop 为轮询函数，callback 为异步函数
   loop: async function (addTData = {}, callback = () => {}) {
+    async function getTaskLoop(taskId, cb = () => {}) {
+      let time = 0;
+      while (true) {
+        try {
+          const res = await this.getTask({
+            id: taskId,
+          });
+          const status = res?.data?.status;
+          if (status === 0) {
+            await cb?.(res);
+            return Promise.resolve(res?.data?.additional_data ?? {});
+          } else if (![0, -1, -2].includes(status)) {
+            return Promise.reject();
+          }
+        } catch (error) {
+          if (time >= 5) {
+            return Promise.reject();
+          }
+          time++;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+      }
+    }
     try {
       const res = await this.addTask(addTData);
       const code = res?.code;
       const taskId = res?.data?.task_id;
       if (code === 200 && taskId) {
         try {
-          const data = await this.getTaskLoop(taskId, callback);
+          const data = await getTaskLoop(taskId, callback);
           return Promise.resolve({
             code: 200,
             task_id: taskId,
@@ -332,7 +259,7 @@ myLibrary.fn.extend({
   getAccessUrl: async function (params = {}) {
     try {
       const res = await this.post(
-        `${this.baseApi}ai/source/get-access-url`,
+        `${this.baseApi}${this.ApiUrl["get-access-url"]}`,
         params
       );
       return Promise.resolve(res);
@@ -343,7 +270,7 @@ myLibrary.fn.extend({
   tempUploadUrl: async function (params = {}) {
     try {
       const res = await this.post(
-        `${this.baseApi}ai/source/temp-upload-url`,
+        `${this.baseApi}${this.ApiUrl["temp-upload-url"]}`,
         params
       );
       return Promise.resolve(res);
@@ -353,7 +280,10 @@ myLibrary.fn.extend({
   },
   canTask: async function (params = {}) {
     try {
-      const res = await this.post(`${this.baseApi}ai/tool/can-task`, params);
+      const res = await this.post(
+        `${this.baseApi}${this.ApiUrl["get-task"]}`,
+        params
+      );
       return Promise.resolve(res);
     } catch (error) {
       return Promise.reject(error);
@@ -370,8 +300,8 @@ myLibrary.fn.extend({
     );
   },
   isIosOrAndroid: function () {
-    var isAndroid = navigator.userAgent.toLowerCase().indexOf("android") > -1;
-    var isiOS =
+    const isAndroid = navigator.userAgent.toLowerCase().indexOf("android") > -1;
+    const isiOS =
       /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     if (isAndroid) {
       return "android";
@@ -381,8 +311,39 @@ myLibrary.fn.extend({
   },
 });
 
-// 下载
+// Other
 myLibrary.fn.extend({
+  // 复制文本到剪切板 - 兼容版
+  copyText: async (val) => {
+    if (navigator.clipboard && navigator.permissions) {
+      await navigator.clipboard.writeText(val);
+    } else {
+      const textArea = document.createElement("textArea");
+      textArea.value = val;
+      textArea.style.width = "100px";
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999px";
+      textArea.style.top = "10px";
+      // textArea.setAttribute("readonly", "readonly");
+      document.body.appendChild(textArea);
+      textArea.select();
+      textArea.setSelectionRange(0, textArea.value.length);
+      document.execCommand("copy");
+      setTimeout(() => {
+        document.body.removeChild(textArea);
+      }, 0);
+    }
+  },
+  // 监听文件上传
+  watchFileUpload: function (fileInput, callback) {
+    fileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        callback(file);
+      }
+    });
+  },
+  // 资源下载
   downloadAssets: function (url, filename = "", callback = () => {}) {
     let error = false;
     this.get(url)
@@ -443,84 +404,139 @@ myLibrary.fn.extend({
         });
       });
   },
-});
-
-// components
-myLibrary.fn.extend({
-  UniversalPopup: function ({
-    title = "",
-    desc = "",
-    btnText = "",
-    status = "success",
-  }) {
-    const popupDoms = this.qsAll(".UniversalPopup");
-    if (popupDoms?.length) {
-      popupDoms.forEach((item) => {
-        item.remove();
-      });
-    }
-    const html = `
-       <div class="UniversalPopup ${status}">
-         <div class="UniversalPopup__main">
-           <div class="UniversalPopup__main_title">${title}</div>
-           <div class="UniversalPopup__main_desc">${desc}</div>
-           <div class="UniversalPopup__main_bar">
-             <div class="UniversalPopup__main_process"></div>
-           </div>
-           <div class="UniversalPopup__main_btn">
-             <button>${btnText}</button>
-           </div>
-           <div class="UniversalPopup__main_close">
-            <svg id="win_icon_close" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
-              <path id="路径_158819" data-name="路径 158819" d="M-8171.115,3374.287l11.474,11.131" transform="translate(8175.615 -3369.787)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"/>
-              <path id="路径_158820" data-name="路径 158820" d="M-8159.641,3374.287l-11.474,11.131" transform="translate(8175.615 -3369.787)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"/>
-              <rect id="矩形_5357" data-name="矩形 5357" width="20" height="20" fill="none"/>
-            </svg>
-           </div>
-         </div>
-       </div>
-     `;
-    document.body.insertAdjacentHTML("beforeend", html);
-    const popupDom = this.qs(".UniversalPopup");
-    const closeBtn = this.qs(".UniversalPopup__main_close", popupDom);
-    const okBtn = this.qs(".UniversalPopup__main_btn button", popupDom);
-    closeBtn.onclick = () => {
-      popupDom.remove();
+  // 获取元素类型
+  getType: function (obj) {
+    var _toString = Object.prototype.toString;
+    var _type = {
+      undefined: "undefined",
+      number: "number",
+      boolean: "boolean",
+      string: "string",
+      "[object Function]": "function",
+      "[object RegExp]": "regexp",
+      "[object Array]": "array",
+      "[object Date]": "date",
+      "[object Error]": "error",
+      // ... 这里可以继续扩展
     };
-    okBtn.onclick = () => {
-      popupDom.remove();
-    };
+    return (
+      _type[typeof obj] ||
+      _type[_toString.call(obj)] ||
+      (obj ? "object" : "null")
+    );
   },
-});
-
-// Other
-myLibrary.fn.extend({
-  copyText: async (val) => {
-    if (navigator.clipboard && navigator.permissions) {
-      await navigator.clipboard.writeText(val);
-    } else {
-      const textArea = document.createElement("textArea");
-      textArea.value = val;
-      textArea.style.width = "100px";
-      textArea.style.position = "fixed";
-      textArea.style.left = "-999px";
-      textArea.style.top = "10px";
-      // textArea.setAttribute("readonly", "readonly");
-      document.body.appendChild(textArea);
-      textArea.select();
-      textArea.setSelectionRange(0, textArea.value.length);
-      document.execCommand("copy");
-      setTimeout(() => {
-        document.body.removeChild(textArea);
-      }, 0);
+  // 检测元素之外的点击
+  checkClickOutside: function (ele, evt) {
+    const isClickedOutside = !ele.contains(evt.target);
+    return isClickedOutside;
+  },
+  // 一次性的事件监听
+  onceListen: function (eventName, handler) {
+    ele.addEventListener(eventName, handler, { once: true });
+  },
+  // 生成 uuid
+  uuid: function (a) {
+    return a
+      ? (a ^ ((Math.random() * 16) >> (a / 4))).toString(16)
+      : ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, this.uuid);
+  },
+  // 解析 URL 参数
+  getSearchParams: function () {
+    const searchPar = new URLSearchParams(window.location.search);
+    const paramsObj = {};
+    for (const [key, value] of searchPar.entries()) {
+      paramsObj[key] = value;
+    }
+    return paramsObj;
+  },
+  // 平滑滚动到页面顶部
+  scrollToTop: function () {
+    const c = document.documentElement.scrollTop || document.body.scrollTop;
+    if (c > 0) {
+      window.requestAnimationFrame(() => this.scrollToTop());
+      window.scrollTo(0, c - c / 8);
     }
   },
-  watchFileUpload: function (fileInput, callback) {
-    fileInput.addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        callback(file);
-      }
+  // 滚动到元素位置
+  smoothScroll: function (element) {
+    document.querySelector(element).scrollIntoView({
+      behavior: "smooth",
     });
+  },
+  // 获取当前页面滚动距离
+  getScrollPosition: (el = window) => ({
+    x: el.scrollLeft || (el.pageXOffset !== undefined ? el.pageXOffset : 0),
+    y: el.scrollTop || (el.pageYOffset !== undefined ? el.pageYOffset : 0),
+  }),
+  // 进入全屏
+  fullScreen: function () {
+    let el = document.documentElement;
+    let rfs =
+      el.requestFullScreen ||
+      el.webkitRequestFullScreen ||
+      el.mozRequestFullScreen ||
+      el.msRequestFullScreen;
+    if (rfs) {
+      rfs.call(el);
+    } else if (typeof window.ActiveXObject !== "undefined") {
+      let wscript = new ActiveXObject("WScript.Shell");
+      if (wscript != null) {
+        wscript.SendKeys("{F11}");
+      }
+    }
+  },
+  // 退出全屏
+  exitScreen: function () {
+    let el = document;
+    let cfs =
+      el.cancelFullScreen ||
+      el.webkitCancelFullScreen ||
+      el.mozCancelFullScreen ||
+      el.exitFullScreen;
+    if (cfs) {
+      cfs.call(el);
+    } else if (typeof window.ActiveXObject !== "undefined") {
+      let wscript = new ActiveXObject("WScript.Shell");
+      if (wscript != null) {
+        wscript.SendKeys("{F11}");
+      }
+    }
+  },
+  // 将二进制图片格式数据展示在页面中
+  showBinaryImg: function (url = "") {
+    this.get(url)
+      .then(async (res) => {
+        return await res.arrayBuffer();
+      })
+      .then((res1) => {
+        const blob = new Blob([res1]);
+        const blobUrl = URL.createObjectURL(blob);
+        return blobUrl;
+      });
+  },
+  // 即使页面关闭了，继续请求 01
+  continueRequestOnUnload1: function (url = "", data = {}) {
+    fetch(url, {
+      method: "POST",
+      body: JSON.stringify(data),
+      keepalive: true,
+    });
+  },
+  // 即使页面关闭了，继续请求 02
+  continueRequestOnUnload2: function (url = "", data = {}) {
+    navigator.sendBeacon(url, JSON.stringify(data));
+  },
+  // 颜色转换
+  hexToRGB: function (hex) {
+    var hexx = hex.replace("#", "0x");
+    var r = hexx >> 16;
+    var g = (hexx >> 8) & 0xff;
+    var b = hexx & 0xff;
+    return `rgb(${r}, ${g}, ${b})`;
+  },
+  RGBToHex: function (rgb) {
+    var rgbArr = rgb.split(/[^\d]+/);
+    var color = (rgbArr[1] << 16) | (rgbArr[2] << 8) | rgbArr[3];
+    return "#" + color.toString(16);
   },
 });
