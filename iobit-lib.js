@@ -9,12 +9,13 @@
     return new myLibrary.fn.init(selector);
   };
   // **************** 配置 *******************
-  const httpsTemp = (str) => `https://${str}/`;
+  const httpsTemp = (str, bool = true) =>
+    bool ? `https://${str}/` : `http://${str}/`;
+  // ******* 这里根据语言配置 *******
   const curLan = "en";
   const prefix = curLan === "en" ? "www" : curLan;
-  const isProduction = location.host.includes(`${prefix}.vidnoz.com`)
-    ? true
-    : false;
+  const host = location.host;
+  const isProduction = host.includes(`${prefix}.vidnoz.com`) ? true : false;
   const headers = {
     "Content-Type": "application/json",
     "X-TASK-VERSION": window?.XTASKVERSION || "2.0.0",
@@ -168,67 +169,6 @@ myLibrary.fn.extend({
         callback(file);
       }
     });
-  },
-  // 资源下载
-  downloadAssets: function (url, filename = "", callback = () => {}) {
-    let error = false;
-    this.get(url)
-      .then((response) => {
-        if (!response.ok) {
-          error = true;
-          callback?.({
-            status: response.status,
-            error: true,
-          });
-          return;
-        } else {
-          error = false;
-        }
-        const contentLength = response.headers.get("Content-Length");
-        const total = parseInt(contentLength, 10);
-        let loaded = 0;
-        const reader = response.body.getReader();
-        return new ReadableStream({
-          start(controller) {
-            function pump() {
-              return reader.read().then(({ done, value }) => {
-                if (done) {
-                  controller.close();
-                  return;
-                }
-                loaded += value.length;
-                const progress = Math.round((loaded / total) * 100);
-                callback?.({
-                  status: response.status,
-                  progress: progress,
-                  error: false,
-                });
-                controller.enqueue(value);
-                return pump();
-              });
-            }
-            return pump();
-          },
-        });
-      })
-      .then((stream) => new Response(stream))
-      .then((response) => response.blob())
-      .then((blob) => {
-        if (!error) {
-          const blobUrl = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = blobUrl;
-          a.download = filename;
-          a.click();
-          URL.revokeObjectURL(blobUrl);
-        }
-      })
-      .catch(() => {
-        callback?.({
-          status: 500,
-          error: true,
-        });
-      });
   },
   // 获取元素类型
   getType: function (obj) {
@@ -628,6 +568,85 @@ myLibrary.fn.extend({
       }
     } catch (error) {
       return Promise.reject(error);
+    }
+  },
+  downloadAssets: async function ({ key, filename = "", callback = () => {} }) {
+    try {
+      const accessData = await this.getAccessUrl({ key });
+      const code = accessData?.code;
+      const staticUrl = accessData?.data?.static_url;
+      const url = accessData?.data?.url;
+      const src = staticUrl || url;
+      if (code === 200 && src) {
+        let error = false;
+        this.get(src)
+          .then((response) => {
+            if (!response.ok) {
+              error = true;
+              callback?.({
+                status: response.status,
+                error: true,
+              });
+              return;
+            } else {
+              error = false;
+            }
+            const contentLength = response.headers.get("Content-Length");
+            const total = parseInt(contentLength, 10);
+            let loaded = 0;
+            const reader = response.body.getReader();
+            return new ReadableStream({
+              start(controller) {
+                function pump() {
+                  return reader.read().then(({ done, value }) => {
+                    if (done) {
+                      controller.close();
+                      return;
+                    }
+                    loaded += value.length;
+                    const progress = Math.round((loaded / total) * 100);
+                    callback?.({
+                      progress: progress,
+                      error: false,
+                    });
+                    controller.enqueue(value);
+                    return pump();
+                  });
+                }
+                return pump();
+              },
+            });
+          })
+          .then((stream) => new Response(stream))
+          .then((response) => response.blob())
+          .then((blob) => {
+            if (!error) {
+              const blobUrl = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = blobUrl;
+              a.download = filename;
+              a.click();
+              URL.revokeObjectURL(blobUrl);
+            } else {
+              callback?.({
+                error: true,
+              });
+            }
+          })
+          .catch(() => {
+            callback?.({
+              error: true,
+            });
+          });
+      } else {
+        callback?.({
+          error: true,
+        });
+      }
+    } catch (error) {
+      callback?.({
+        error: true,
+      });
     }
   },
 });
