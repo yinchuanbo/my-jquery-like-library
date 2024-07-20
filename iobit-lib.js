@@ -15,7 +15,7 @@
   const isProduction = location.host.includes("www.vidnoz.com") ? true : false;
   const headers = {
     "Content-Type": "application/json",
-    "X-TASK-VERSION": "2.0.0",
+    "X-TASK-VERSION": XTASKVERSION || "2.0.0",
   };
   const baseApi = isProduction
     ? httpsTemp("tool-api.vidnoz.com")
@@ -289,7 +289,7 @@ myLibrary.fn.extend({
         });
         const status = res?.data?.status;
         if (status === 0) {
-          await callback(res);
+          await callback?.(res);
           return Promise.resolve(res?.data?.additional_data ?? {});
         } else if (![0, -1, -2].includes(status)) {
           return Promise.reject();
@@ -303,7 +303,7 @@ myLibrary.fn.extend({
       await new Promise((resolve) => setTimeout(resolve, 5000));
     }
   },
-  // callback 为异步函数
+  // loop 为轮询函数，callback 为异步函数
   loop: async function (addTData = {}, callback = () => {}) {
     try {
       const res = await this.addTask(addTData);
@@ -313,13 +313,48 @@ myLibrary.fn.extend({
         try {
           const data = await this.getTaskLoop(taskId, callback);
           return Promise.resolve({
+            code: 200,
             task_id: taskId,
             data,
           });
         } catch (error) {
           return Promise.reject(error);
         }
+      } else {
+        return Promise.resolve({
+          code,
+        });
       }
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  },
+  getAccessUrl: async function (params = {}) {
+    try {
+      const res = await this.post(
+        `${this.baseApi}ai/source/get-access-url`,
+        params
+      );
+      return Promise.resolve(res);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  },
+  tempUploadUrl: async function (params = {}) {
+    try {
+      const res = await this.post(
+        `${this.baseApi}ai/source/temp-upload-url`,
+        params
+      );
+      return Promise.resolve(res);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  },
+  canTask: async function (params = {}) {
+    try {
+      const res = await this.post(`${this.baseApi}ai/tool/can-task`, params);
+      return Promise.resolve(res);
     } catch (error) {
       return Promise.reject(error);
     }
